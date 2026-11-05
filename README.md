@@ -40,6 +40,14 @@ It opens an isometric **office**. Agents that are working sit at cubicle desks: 
 
 Two looks: **Medium** is a hand-drawn 2D canvas (zero dependencies). **High (3D)** renders the same office with real-time lighting and shadows using [Kenney](https://kenney.nl)'s CC0 *Mini Characters* (with their walk / sit / interact animations) and *Furniture Kit*; drag to rotate, scroll to zoom. The 3D bundle (three.js, ~180 KB gzipped) and models (~1.3 MB, meshopt-compressed) only load when you pick High.
 
+**반달이 · 꼬미 staff:** the office is staffed by 반달이 (Bandal) and 꼬미 (Kkomi), the Korea National Park Service mascots, instead of generic people. Each is a sprite sheet cut from the official turnaround art (front, back and side views in the *Character Standards*) and rigged part by part: eight facing directions, an 8-frame walk cycle driven by distance walked, idle breathing with blinks, sitting, typing, waving, napping, holding a cup and reaching. Claude sessions are 반달이, Codex sessions and subagents are 꼬미, other agents get either. Both offices use them (2D draws the sheet; 3D shows camera-facing cards that pick the drawn direction from the camera angle). Turn them off under **Settings → Bandal & Kkomi staff**. How the sheets are made, and how to change who plays whom: [tools/characters](tools/characters/README.md). The characters belong to the Korea National Park Service and are not covered by this repository's license.
+
+| 2D | 3D |
+|---|---|
+| ![반달이 and 꼬미 at work in the 2D office](docs/office-bears.gif) | ![The 3D office with 반달이 and 꼬미](docs/office-bears-3d.png) |
+
+> **한국어 요약:** 오피스 직원이 국립공원공단 캐릭터 반달이·꼬미로 바뀝니다. 공식 캐릭터 규정집의 정면·후면·측면 원화를 부위별로 리깅해 8방향 걷기(8프레임)·대기(숨쉬기·눈 깜빡임)·앉기·타이핑·손 흔들기·낮잠·컵 들기·손 뻗기 스프라이트를 만들었습니다. Claude 세션은 반달이, Codex 세션과 서브에이전트는 꼬미입니다. **설정 → 반달이·꼬미 직원**에서 끌 수 있고, 제작 과정과 배역 변경은 [tools/characters](tools/characters/README.md)에 있습니다.
+
 **Scenes (3D):** the office is built in; other scenes are small downloadable packs (Haunted Hollow, Pirate Cove, Café, Space Station and Castle are 100–230 KB each), fetched only when you pick one from the scene menu next to 2D/3D, run `--scene pirate`, or ask your agent for it. Packs are data only (a manifest plus Kenney CC0 models) and are checked against a pinned SHA-256 before they're installed into `~/.whatsmyagentdoing/scenes`.
 
 Each session updates in real time:

@@ -6,6 +6,7 @@
     en: {
       settings: "Settings", scene: "Scene", agents: "Agents", language: "Language",
       showAgent: "Agent badges",
+      bears: "Bandal & Kkomi staff",
       pip: "Pop out",
       pipClose: "Close pop-out",
       pipOn: "The dashboard is open in the pop-out window.",
@@ -29,6 +30,7 @@
     'zh-TW': {
       settings: "設定", scene: "場景", agents: "顯示哪些 Agent", language: "語言",
       showAgent: "Agent 標記",
+      bears: "半月熊與小可米員工",
       pip: "子母畫面",
       pipClose: "關閉子母畫面",
       pipOn: "儀表板正在子母畫面視窗中顯示。",
@@ -52,6 +54,7 @@
     'zh-CN': {
       settings: "设置", scene: "场景", agents: "显示哪些 Agent", language: "语言",
       showAgent: "Agent 标记",
+      bears: "半月熊与小可米员工",
       pip: "画中画",
       pipClose: "关闭画中画",
       pipOn: "仪表板正在画中画窗口中显示。",
@@ -75,6 +78,7 @@
     ja: {
       settings: "設定", scene: "シーン", agents: "エージェント", language: "言語",
       showAgent: "エージェントの印",
+      bears: "バンダル＆コミのスタッフ",
       pip: "ポップアウト",
       pipClose: "ポップアウトを閉じる",
       pipOn: "ダッシュボードはポップアウトウィンドウに表示中です。",
@@ -98,6 +102,7 @@
     ko: {
       settings: "설정", scene: "장면", agents: "에이전트", language: "언어",
       showAgent: "에이전트 표시",
+      bears: "반달이·꼬미 직원",
       pip: "팝아웃",
       pipClose: "팝아웃 닫기",
       pipOn: "대시보드가 팝아웃 창에 표시되고 있어요.",
@@ -121,6 +126,7 @@
     es: {
       settings: "Ajustes", scene: "Escenario", agents: "Agentes", language: "Idioma",
       showAgent: "Insignias de agentes",
+      bears: "Personal Bandal y Kkomi",
       pip: "Ventana flotante",
       pipClose: "Cerrar ventana flotante",
       pipOn: "El panel se muestra en la ventana flotante.",
@@ -144,6 +150,7 @@
     fr: {
       settings: "Réglages", scene: "Scène", agents: "Agents", language: "Langue",
       showAgent: "Badges des agents",
+      bears: "Équipe Bandal et Kkomi",
       pip: "Fenêtre flottante",
       pipClose: "Fermer la fenêtre flottante",
       pipOn: "Le tableau de bord est affiché dans la fenêtre flottante.",
@@ -167,6 +174,7 @@
     de: {
       settings: "Einstellungen", scene: "Szene", agents: "Agents", language: "Sprache",
       showAgent: "Agent-Abzeichen",
+      bears: "Bandal- & Kkomi-Team",
       pip: "Mini-Fenster",
       pipClose: "Mini-Fenster schließen",
       pipOn: "Das Dashboard wird im Mini-Fenster angezeigt.",
@@ -190,6 +198,7 @@
     pt: {
       settings: "Configurações", scene: "Cenário", agents: "Agentes", language: "Idioma",
       showAgent: "Identificação dos agentes",
+      bears: "Equipe Bandal e Kkomi",
       pip: "Janela flutuante",
       pipClose: "Fechar janela flutuante",
       pipOn: "O painel está aberto na janela flutuante.",

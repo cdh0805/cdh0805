@@ -200,8 +200,12 @@
   // ---------------------------------------------------------------- office
 
   class Office {
-    constructor(root, { onHover, label, onFrame, showAgent = true, compact = false } = {}) {
+    constructor(root, { onHover, label, onFrame, showAgent = true, compact = false, characters = true } = {}) {
       this.root = root;
+      // 반달이 & 꼬미 sprite staff (public/characters.js); people drawn by
+      // hand are the fallback until the sheets load, or when switched off.
+      this.characters = characters;
+      if (window.OfficeCharacters) window.OfficeCharacters.load();
       this.onHover = onHover || (() => {});
       this.label = label || ((s) => s.project || s.agent);
       this.onFrame = onFrame;
@@ -1182,6 +1186,10 @@
     }
 
     person(p) {
+      if (this.characters && window.OfficeCharacters && window.OfficeCharacters.ready) {
+        const drawn = this.personSprite(p);
+        if (drawn) return drawn;
+      }
       const c = this.ctx;
       const t = this.t / 1000;
       const s = p.s || {};
@@ -1332,6 +1340,86 @@
       const headTop = y + (hy - 8) * sc;
       this.hit.push({ key: p.key, x0: x - 13, x1: x + 13, y0: headTop - 22, y1: fb.y + 4 });
       return { x, y: headTop, act: st.act };
+    }
+
+    // ------------------------------------------------------- sprite staff
+
+    // Which animation and facing a sprite person shows for a state.
+    spriteAnim(p, st) {
+      if (st.pose === 'walk') return ['walk', p.dir || 's'];
+      const deskDir = (dk) => (dk.side === 'n' ? 'sw' : 'ne');
+      if (p.mode === 'work' && p.desk) {
+        const dir = deskDir(p.desk);
+        if (st.act === 'wave') return ['wave', dir];
+        if (st.act === 'station') return ['idle', dir];
+        if (st.act === 'type') return ['type', dir];
+        return ['sit', dir];
+      }
+      if (p.mode === 'wander' && p.poi) {
+        const q = p.poi;
+        const dir = q.desk ? deskDir(q.desk) : st.face === 'back' ? 'n' : 's';
+        switch (st.act) {
+          case 'nap': return ['nap', dir];
+          case 'coffee': case 'water': case 'phone': case 'read': case 'pingpong': return ['hold', dir];
+          case 'whiteboard': case 'arcade': case 'vending': return ['reach', dir];
+          default: return [st.pose === 'sit' ? 'sit' : 'idle', dir];
+        }
+      }
+      return ['idle', p.dir || 's'];
+    }
+
+    personSprite(p) {
+      const C = window.OfficeCharacters;
+      const s = p.s || {};
+      if (!p.cast) p.cast = C.castFor(s);
+      if (!p.cast) return null;
+      const c = this.ctx;
+      const t = this.t / 1000;
+      const st = this.stateOf(p);
+      p.pose = st.pose;
+      const [anim, dir] = this.spriteAnim(p, st);
+      if (st.pose !== 'walk') p.dir = dir;
+      const sc = s.subagent ? 0.85 : 1;
+      const ch = C.get(p.cast);
+      const w = ch.m.width * ch.scale * sc;
+
+      const fb = this.iso(p.x, p.y, 0);
+      c.fillStyle = this.pal.shadow;
+      c.beginPath(); c.ellipse(fb.x, fb.y, w * 0.42, w * 0.18, 0, 0, Math.PI * 2); c.fill();
+      if (this.hoverKey === p.key) {
+        c.strokeStyle = STATUS_COLOR[s.status] || '#888';
+        c.lineWidth = 2;
+        c.beginPath(); c.ellipse(fb.x, fb.y, w * 0.55, w * 0.25, 0, 0, Math.PI * 2); c.stroke();
+      }
+      const b = this.iso(p.x, p.y, st.sitZ);
+      let x = b.x;
+      if (st.act === 'pingpong') x += Math.sin(t * 7 + p.phase) * 4;
+      if (st.act === 'foosball') x += Math.sin(t * 5 + p.phase) * 1.5;
+      const r = C.draw(c, p.cast, anim, dir, x, b.y, { t: this.t, phase: p.phase, dist: p.walkDist || 0, scale: sc });
+      if (!r) return null;
+
+      // Things held in the paw (front-facing frames only).
+      if (r.hand && anim === 'hold') {
+        const k = r.width / 30;
+        const { x: hx, y: hy } = r.hand;
+        if (st.act === 'coffee' || st.act === 'water') {
+          c.fillStyle = st.act === 'water' ? 'rgba(170,215,255,.95)' : '#fafafa';
+          c.fillRect(hx - 2.5 * k, hy - 5 * k, 5 * k, 6 * k);
+          if (st.act === 'coffee') { c.fillStyle = '#6b3f22'; c.fillRect(hx - 2 * k, hy - 5 * k, 4 * k, 1.5 * k); }
+        } else if (st.act === 'phone') {
+          c.fillStyle = '#222'; c.fillRect(hx - 1.6 * k, hy - 6 * k, 3.2 * k, 6 * k);
+        } else if (st.act === 'read') {
+          c.fillStyle = pick(this.pal.book, p.h, 5); c.fillRect(hx - 7 * k, hy - 6 * k, 14 * k, 9 * k);
+          c.fillStyle = '#fff'; c.fillRect(hx - 0.5 * k, hy - 6 * k, 1 * k, 9 * k);
+        } else if (st.act === 'pingpong') {
+          c.fillStyle = '#c0392b';
+          c.beginPath(); c.arc(hx + 2 * k, hy - 3 * k, 4 * k, 0, Math.PI * 2); c.fill();
+        }
+      }
+
+      const top = r.top;
+      this.hit.push({ key: p.key, x0: x - w / 2 - 2, x1: x + w / 2 + 2, y0: top - 14, y1: fb.y + 4 });
+      return { x, y: top + 6, act: st.act };
     }
 
     bubble(p, at) {
@@ -1551,7 +1639,12 @@
         if (p.path.length) {
           const n = p.path[0];
           const dx = n.x - p.x, dy = n.y - p.y, d = Math.hypot(dx, dy), v = SPEED * dt;
-          if (d > 0.001) p.walkFace = dx + dy >= 0 ? 'front' : 'back';
+          if (d > 0.001) {
+            p.walkFace = dx + dy >= 0 ? 'front' : 'back';
+            // Facing on screen: the iso projection of the step.
+            if (window.OfficeCharacters) p.dir = window.OfficeCharacters.dirFromVector(dx - dy, (dx + dy) / 2, p.dir);
+          }
+          p.walkDist = (p.walkDist || 0) + Math.min(d, v);
           if (d <= v) { p.x = n.x; p.y = n.y; p.path.shift(); }
           else { p.x += (dx / d) * v; p.y += (dy / d) * v; }
         } else if (p.leaving) {

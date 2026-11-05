@@ -428,6 +428,7 @@
             <label class="tog"><span data-t="subagents"></span><input type="checkbox" role="switch" id="showSub"></label>
             <label class="tog" id="idleToggle"><span data-t="showIdle"></span><input type="checkbox" role="switch" id="showIdle"></label>
             <label class="tog" id="agentBadgeToggle"><span data-t="showAgent"></span><input type="checkbox" role="switch" id="showAgent"></label>
+            <label class="tog" id="bearsToggle"><span data-t="bears"></span><input type="checkbox" role="switch" id="bears"></label>
             <label class="tog" id="soundToggle"><span data-t="sound"></span><input type="checkbox" role="switch" id="sound"></label>
             <label class="tog" id="notifyToggle"><span data-t="notify"></span><input type="checkbox" role="switch" id="notify"></label>
           </div>
@@ -466,6 +467,7 @@
 <div class="tip" id="tip"></div>
 <div class="ver" id="ver"></div>
 <script src="/i18n.js"></script>
+<script src="/characters.js"></script>
 <script src="/office.js"></script>
 <script src="/popout.js"></script>
 
@@ -507,7 +509,7 @@ const store = (() => {
   return { get, set };
 })();
 
-const PREF_DEFAULTS = { view: 'office', quality: 'mid', scene: 'office', agents: [], showSub: false, showIdle: false, showAgent: true, sound: false, notify: true, side: true, lang: 'auto' };
+const PREF_DEFAULTS = { view: 'office', quality: 'mid', scene: 'office', agents: [], showSub: false, showIdle: false, showAgent: true, bears: true, sound: false, notify: true, side: true, lang: 'auto' };
 function validAgentId(v) {
   return typeof v === 'string' && v !== 'all' && /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(v) && !Object.hasOwn(Object.prototype, v);
 }
@@ -717,6 +719,7 @@ function render() {
   // all walking in through the door.
   if (office && state.loaded) {
     office.showAgent = state.showAgent;
+    office.characters = state.bears;
     office.setVisible(officeMode && !poppedOut);
     office.update(officeList);
   }
@@ -861,6 +864,8 @@ soundBox.addEventListener('change', () => {
   if (state.sound) chime('done'); // a preview, and the click unlocks audio for later alerts
 });
 showAgent.addEventListener('change', () => { state.showAgent = showAgent.checked; store.set('showAgent', state.showAgent); syncControls(); render(); });
+const bearsBox = document.getElementById('bears');
+bearsBox.addEventListener('change', () => { state.bears = bearsBox.checked; store.set('bears', state.bears); syncControls(); render(); });
 
 const notifyBtn = document.getElementById('notify');
 function syncControls() {
@@ -874,7 +879,9 @@ function syncControls() {
   showIdle.checked = state.showIdle;
   soundBox.checked = state.sound;
   showAgent.checked = state.showAgent;
+  bearsBox.checked = state.bears;
   document.getElementById('agentBadgeToggle').style.display = view === 'office' ? '' : 'none';
+  document.getElementById('bearsToggle').style.display = view === 'office' ? '' : 'none';
   popout?.sync(PIP, view);
   // On only when both the switch and the browser allow it; blocked shows how to unblock.
   const perm = window.Notification ? Notification.permission : 'unsupported';
@@ -953,7 +960,7 @@ async function makeOffice() {
   officeKind = kind;
   setLoading(true, high ? L.loading3d : L.loading2d);
   let Cls = window.Office;
-  const opts = { ...officeOpts, showAgent: state.showAgent };
+  const opts = { ...officeOpts, showAgent: state.showAgent, characters: state.bears };
   if (high) {
     try {
       Cls = (await import('/office3d.js')).Office3D;
@@ -970,7 +977,7 @@ async function makeOffice() {
     mine = new Cls(officeEl, opts);
   } catch (e) {
     console.error(e);
-    mine = new window.Office(officeEl, officeOpts);
+    mine = new window.Office(officeEl, { ...officeOpts, characters: state.bears });
     if (high) { state.quality = 'mid'; store.set('quality', 'mid'); officeKind = 'mid'; syncControls(); }
   }
   office = mine;

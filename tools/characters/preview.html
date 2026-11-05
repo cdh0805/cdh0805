@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>반달이 · 꼬미 스프라이트</title>
+<style>
+  :root { --bg: #f4f1ea; --card: #fffdf8; --text: #2b2a27; --muted: #77736a; --line: #e2ddd1; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1d1c1a; --card: #262522; --text: #ece8df; --muted: #a29d92; --line: #3a3833; } }
+  body { margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.note { color: var(--muted); margin: 0 0 20px; max-width: 760px; }
+  h2 { font-size: 16px; margin: 28px 0 10px; }
+  .grid { display: grid; grid-template-columns: 84px repeat(8, minmax(56px, 1fr)); gap: 6px; max-width: 980px; }
+  .h { font-size: 12px; color: var(--muted); text-align: center; align-self: end; }
+  .a { font-size: 12px; font-weight: 600; align-self: center; }
+  canvas { width: 100%; aspect-ratio: 3 / 4; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+  .empty { border: 1px dashed var(--line); border-radius: 8px; aspect-ratio: 3 / 4; }
+</style>
+</head>
+<body>
+<h1>반달이 · 꼬미 스프라이트 시트 미리보기</h1>
+<p class="note">공식 캐릭터 규정집의 턴어라운드(정면·후면·측면) 벡터 원화를 부위별로 리깅해 렌더링한 프레임입니다. 열은 화면 기준 8방향, 행은 애니메이션입니다. 빈 칸은 해당 방향이 오피스에서 쓰이지 않아 가장 가까운 방향으로 대체됩니다.</p>
+<div id="out"></div>
+<script src="../../public/characters.js"></script>
+<script>
+  // Serve the repository root over HTTP (e.g. `npx http-server .`) and open /tools/characters/preview.html.
+  const C = window.OfficeCharacters;
+  const DIRS = ['sw', 's', 'se', 'e', 'ne', 'n', 'nw', 'w'];
+  const NAMES = { sw: '↙ 남서', s: '↓ 남', se: '↘ 남동', e: '→ 동', ne: '↗ 북동', n: '↑ 북', nw: '↖ 북서', w: '← 서' };
+  const ANIM_KO = { walk: '걷기', idle: '대기', sit: '앉기', type: '타이핑', wave: '손 흔들기', nap: '낮잠', hold: '들고 있기', reach: '손 뻗기' };
+  // characters.js fetches from the site root; point it at this checkout instead.
+  const realFetch = window.fetch;
+  window.fetch = (u, o) => realFetch(String(u).replace(/^\/assets\//, '../../assets/'), o);
+  const realSrc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+  Object.defineProperty(HTMLImageElement.prototype, 'src', { set(v) { realSrc.set.call(this, String(v).replace(/^\/assets\//, '../../assets/')); }, get() { return realSrc.get.call(this); } });
+  const cells = [];
+  C.load().then((ok) => {
+    if (!ok) { document.getElementById('out').textContent = '스프라이트를 불러오지 못했습니다.'; return; }
+    const out = document.getElementById('out');
+    for (const id of ['bandal', 'kkomi']) {
+      const ch = C.get(id);
+      const h2 = document.createElement('h2');
+      h2.textContent = `${ch.name.ko} (${ch.name.en}) — 프레임 ${ch.m.frameWidth}×${ch.m.frameHeight}px`;
+      out.appendChild(h2);
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      grid.appendChild(document.createElement('div'));
+      for (const d of DIRS) { const h = document.createElement('div'); h.className = 'h'; h.textContent = NAMES[d]; grid.appendChild(h); }
+      for (const [anim, entry] of Object.entries(ch.m.anims)) {
+        const a = document.createElement('div'); a.className = 'a'; a.textContent = `${ANIM_KO[anim] || anim} · ${entry.frames}f`; grid.appendChild(a);
+        for (const d of DIRS) {
+          if (entry.dirs[d] == null) { const e = document.createElement('div'); e.className = 'empty'; grid.appendChild(e); continue; }
+          const cv = document.createElement('canvas'); cv.width = 150; cv.height = 200; grid.appendChild(cv);
+          cells.push({ cv, id, anim, d });
+        }
+      }
+      out.appendChild(grid);
+    }
+    const t0 = performance.now();
+    const tick = (now) => {
+      const t = now - t0;
+      for (const { cv, id, anim, d } of cells) {
+        const ctx = cv.getContext('2d');
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        const ch = C.get(id);
+        const scale = (cv.height * 0.72) / ch.m.height / ch.scale;
+        ctx.fillStyle = 'rgba(0,0,0,.12)';
+        ctx.beginPath(); ctx.ellipse(cv.width / 2, cv.height * 0.86, ch.m.width * ch.scale * scale * 0.42, ch.m.width * ch.scale * scale * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+        C.draw(ctx, id, anim, d, cv.width / 2, cv.height * 0.86, { t, phase: 0, dist: (t / 1000) * 2.1, scale });
+      }
+      window.__frame = (window.__frame || 0) + 1;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+</script>
+</body>
+</html>

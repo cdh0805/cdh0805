@@ -51,6 +51,8 @@
     "test:transcript": "node --test tests/transcript.cjs",
     "test:server": "node --test tests/server.cjs",
     "test:clients": "node --test tests/clients.cjs",
-    "test:ui:clients": "node tests/ui-clients.cjs"
+    "test:ui:clients": "node tests/ui-clients.cjs",
+    "test:characters": "node --test tests/characters.cjs",
+    "build:characters": "node tools/characters/build.cjs"
   }
 }

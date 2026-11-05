@@ -993,9 +993,62 @@ export class Office3D extends window.Office {
 
   // ------------------------------------------------------------ actors
 
+  // 반달이 / 꼬미 sprite staff (public/characters.js) when they are on and loaded.
+  wantsSprite(p) {
+    const C = window.OfficeCharacters;
+    if (!this.characters || !C || !C.ready) return null;
+    if (!p.cast) p.cast = C.castFor(p.s || {});
+    return p.cast;
+  }
+
+  // A camera-facing card cut from the character's sprite sheet, with a soft
+  // round shadow on the floor. The sheet cell is picked every frame from the
+  // walk / sit / … animation and the facing relative to the camera.
+  spriteActor(p, cast) {
+    const C = window.OfficeCharacters;
+    const ch = C.get(cast);
+    this.spriteTex = this.spriteTex || {};
+    let tex = this.spriteTex[cast];
+    if (!tex) {
+      tex = new THREE.Texture(ch.img);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      tex.needsUpdate = true;
+      this.spriteTex[cast] = tex;
+    }
+    const m = ch.m;
+    const W = ch.img.naturalWidth, H = ch.img.naturalHeight;
+    const map = tex.clone();
+    map.repeat.set(m.frameWidth / W, m.frameHeight / H);
+    // Same on-screen size as the 2D office: 40 px there ≈ CHAR_HEIGHT here.
+    const k = (CHAR_HEIGHT / 40) * ch.scale * (p.s && p.s.subagent ? 0.85 : 1);
+    const geo = new THREE.PlaneGeometry(m.frameWidth * k, m.frameHeight * k);
+    geo.translate((m.frameWidth / 2 - m.anchor[0]) * k, (m.anchor[1] - m.frameHeight / 2) * k, 0);
+    const mat = new THREE.MeshBasicMaterial({ map, transparent: true, alphaTest: 0.04, toneMapped: false, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = 2;
+    const shadow = new THREE.Mesh(new THREE.CircleGeometry(m.width * k * 0.42, 24),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.16, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.scale.y = 0.62;
+    const obj = new THREE.Group();
+    obj.add(shadow, mesh);
+    const prop = new THREE.Group();
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.1, 10), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+    const book = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.28, 0.04), new THREE.MeshStandardMaterial({ color: 0xc96442 }));
+    prop.add(cup, book);
+    this.scene.add(obj, prop);
+    const a = { sprite: true, cast, obj, mesh, map, mat, k, W, H, prop, cup, book, yaw: 0, last: { x: p.x, y: p.y }, topWorld: new THREE.Vector3() };
+    this.actors.set(p.key, a);
+    return a;
+  }
+
   actorFor(p) {
     let a = this.actors.get(p.key);
+    const cast = this.wantsSprite(p);
+    if (a && (a.sprite ? a.cast : null) !== cast) { this.scene.remove(a.obj, a.prop); this.actors.delete(p.key); a = null; }
     if (a) return a;
+    if (cast) return this.spriteActor(p, cast);
     const gltf = this.chars[p.h % this.chars.length];
     const obj = cloneSkinned(gltf.scene);
     obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -1051,6 +1104,7 @@ export class Office3D extends window.Office {
       const a = this.actorFor(p);
       const st = this.stateOf(p);
       p.pose = st.pose;
+      if (a.sprite) { this.syncSprite(p, a, st, dt); continue; }
       const anim = {
         walk: 'walk', wave: 'emote-yes', coffee: 'holding-right', water: 'holding-right', read: 'holding-both',
         phone: 'holding-right', arcade: 'interact-right', whiteboard: 'interact-right', foosball: 'interact-left',
@@ -1101,6 +1155,54 @@ export class Office3D extends window.Office {
         a.prop.rotation.y = a.yaw;
         a.cup.material.color.set(st.act === 'water' ? 0x9fd3ff : 0xffffff);
       }
+    }
+  }
+
+  syncSprite(p, a, st, dt) {
+    const C = window.OfficeCharacters;
+    const dx = p.x - a.last.x, dy = p.y - a.last.y;
+    let want = st.pose !== 'walk' && p.poi && p.poi.float ? null : this.facing(p, st);
+    if (want == null && Math.hypot(dx, dy) > 0.001) want = Math.atan2(dx, dy);
+    if (want != null) {
+      let d = want - a.yaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      a.yaw += d * Math.min(1, dt * 12);
+    }
+    a.last = { x: p.x, y: p.y };
+    // Facing relative to the camera → which of the eight drawn directions.
+    const f = this.camera.getWorldDirection(new THREE.Vector3());
+    const fl = Math.hypot(f.x, f.z) || 1;
+    const fx = f.x / fl, fz = f.z / fl;
+    const hx = Math.sin(a.yaw), hz = Math.cos(a.yaw);
+    const dir = C.dirFromVector(hx * -fz + hz * fx, -(hx * fx + hz * fz), 's');
+    const [anim] = this.spriteAnim(p, st);
+    const fr = C.frame(a.cast, anim, dir, { t: this.t, phase: p.phase, dist: p.walkDist || 0 });
+    a.map.offset.set(fr.sx / a.W, 1 - (fr.sy + fr.sh) / a.H);
+    const seatY = st.pose === 'sit' ? this.seatHeight(p.x, p.y, st.sitZ)
+      : this.plan.terrain ? this.groundHeight(p.x, p.y) : 0;
+    let lift = 0;
+    if (st.pose !== 'walk' && p.poi && p.poi.float) lift = 0.45 + Math.sin((this.t / 1000 + p.phase) * 0.9) * 0.18;
+    let x = p.x;
+    if (st.act === 'pingpong') x += Math.sin(this.t / 1000 * 7 + p.phase) * 0.06;
+    a.obj.position.set(x, seatY + lift, p.y);
+    a.mesh.position.y = 0;
+    a.mesh.quaternion.copy(this.camera.quaternion);
+    // The floor shadow stays on the floor when sitting.
+    a.obj.children[0].position.y = 0.012 - (seatY + lift);
+    // Unlit art, dimmed a little with the room at night.
+    a.mat.color.setScalar(Math.min(1, 0.6 + 0.4 * Math.min(1, this.hemi.intensity)));
+    a.obj.updateMatrixWorld(true);
+    a.topWorld.set(0, fr.top * a.k, 0);
+    a.mesh.localToWorld(a.topWorld);
+    // Props in the paw, on the card's plane just in front of it.
+    a.cup.visible = anim === 'hold' && !!fr.hand && (st.act === 'coffee' || st.act === 'water' || (p.poi && p.poi.prop === 'cup'));
+    a.book.visible = anim === 'hold' && !!fr.hand && st.act === 'read';
+    if (fr.hand && (a.cup.visible || a.book.visible)) {
+      const hand = new THREE.Vector3(fr.hand[0] * a.k, -fr.hand[1] * a.k, 0.04);
+      a.mesh.localToWorld(hand);
+      a.prop.position.copy(hand);
+      a.prop.quaternion.copy(this.camera.quaternion);
+      a.cup.material.color.set(st.act === 'water' ? 0x9fd3ff : 0xffffff);
     }
   }
 
@@ -1204,7 +1306,9 @@ export class Office3D extends window.Office {
     }
     if (this.arcadeScreen) this.arcadeScreen.material.emissive.setHSL((t * 0.05) % 1, 0.7, 0.5);
     const fbPlaying = this.plan.pois.filter((q) => q.pair === 'fb' && q.taken).length === 2;
-    if (this.rods) this.rods.forEach((r, k) => { r.position.z = this.plan.props.find((q) => q.t === 'foosball').y + 0.4 + (fbPlaying ? Math.sin(t * 8 + k) * 0.06 : 0); r.rotation.z = fbPlaying ? Math.sin(t * 12 + k) * 0.6 : 0; });
+    // A rebuilt plan can drop the foosball table while old rods linger.
+    const fbTable = this.rods && this.plan.props.find((q) => q.t === 'foosball');
+    if (fbTable) this.rods.forEach((r, k) => { r.position.z = fbTable.y + 0.4 + (fbPlaying ? Math.sin(t * 8 + k) * 0.06 : 0); r.rotation.z = fbPlaying ? Math.sin(t * 12 + k) * 0.6 : 0; });
     this.updateBall();
 
     this.syncActors(dt);
@@ -1224,7 +1328,8 @@ export class Office3D extends window.Office {
       const base = this.plan.terrain && st.pose !== 'sit' ? this.groundHeight(p.x, p.y) : 0;
       const floatUp = st.pose !== 'walk' && p.poi && p.poi.float ? 0.45 + Math.sin((this.t / 1000 + p.phase) * 0.9) * 0.18 : 0;
       const top = (st.pose === 'sit' ? this.seatHeight(p.x, p.y, st.sitZ) + CHAR_HEIGHT * 0.8 * scale : base + CHAR_HEIGHT * scale) + floatUp;
-      v.set(p.x, top + 0.05, p.y).project(this.camera);
+      if (a.sprite) v.copy(a.topWorld).project(this.camera);
+      else v.set(p.x, top + 0.05, p.y).project(this.camera);
       const sx = (v.x + 1) / 2 * this.cw, sy = (1 - v.y) / 2 * this.ch;
       const foot = new THREE.Vector3(p.x, 0, p.y).project(this.camera);
       const fy = (1 - foot.y) / 2 * this.ch;

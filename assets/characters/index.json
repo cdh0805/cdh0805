@@ -1,0 +1,11 @@
+{
+  "characters": [
+    { "id": "bandal", "name": { "ko": "반달이", "en": "Bandal" }, "height": 46, "stride": 0.95 },
+    { "id": "kkomi", "name": { "ko": "꼬미", "en": "Kkomi" }, "height": 30, "stride": 0.62 }
+  ],
+  "cast": {
+    "agents": { "claude": "bandal", "codex": "kkomi" },
+    "subagent": "kkomi",
+    "others": ["bandal", "kkomi"]
+  }
+}
