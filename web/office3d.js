@@ -1098,9 +1098,9 @@ export class Office3D extends window.Office {
 
   syncActors(dt) {
     for (const [k, a] of this.actors) {
-      if (!this.people.has(k)) { this.scene.remove(a.obj, a.prop); this.actors.delete(k); }
+      if (!this.people.has(k) && !this.crew.has(k)) { this.scene.remove(a.obj, a.prop); this.actors.delete(k); }
     }
-    for (const p of this.people.values()) {
+    for (const p of this.everyone()) {
       const a = this.actorFor(p);
       const st = this.stateOf(p);
       p.pose = st.pose;
@@ -1320,7 +1320,7 @@ export class Office3D extends window.Office {
     this.hit = [];
     const heads = [];
     const v = new THREE.Vector3();
-    for (const p of this.people.values()) {
+    for (const p of this.everyone()) {
       const a = this.actors.get(p.key);
       if (!a) continue;
       const st = this.stateOf(p);
@@ -1334,7 +1334,7 @@ export class Office3D extends window.Office {
       const foot = new THREE.Vector3(p.x, 0, p.y).project(this.camera);
       const fy = (1 - foot.y) / 2 * this.ch;
       heads.push([p, { x: sx, y: sy, act: st.act }, v.z]);
-      this.hit.push({ key: p.key, x0: sx - 18, x1: sx + 18, y0: sy - 24, y1: fy + 4 });
+      if (!p.crew) this.hit.push({ key: p.key, x0: sx - 18, x1: sx + 18, y0: sy - 24, y1: fy + 4 });
     }
     heads.sort((a, b) => b[2] - a[2]);
     for (const [p, at] of heads) this.bubble(p, at);
@@ -1351,7 +1351,7 @@ export class Office3D extends window.Office {
   updateBall() {
     if (!this.ball) return;
     const players = this.plan.pois.filter((q) => q.pair === 'pp' && q.taken)
-      .map((q) => this.people.get(q.taken)).filter((p) => p && p.poi && p.poi.pair === 'pp' && !p.path.length);
+      .map((q) => this.who(q.taken)).filter((p) => p && p.poi && p.poi.pair === 'pp' && !p.path.length);
     this.ball.visible = players.length === 2;
     if (!this.ball.visible) return;
     const pp = this.plan.pp;

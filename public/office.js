@@ -9,6 +9,12 @@
   const WALL_H = 2.4;
   const WORKING = new Set(['thinking', 'tool', 'typing', 'waiting', 'error']);
   const MAX_WANDERERS = 7;
+  // Lounge crew: residents not tied to any session, so the break areas are
+  // never empty. They fill up to this many minus the off-duty agents.
+  const CREW_SIZE = 4;
+  const CREW_CAST = ['bandal', 'kkomi', 'bandal', 'kkomi'];
+  // Where people go to play rather than to stare out of a window.
+  const PLAY = new Set(['pingpong', 'foosball', 'arcade', 'couch', 'beanbag', 'coffee', 'water', 'read', 'stool', 'vending', 'fridge']);
   const SPEED = 2.1; // tiles / second
 
   const SKIN = ['#f3cfb0', '#e5b38f', '#c98d66', '#9a6646', '#6e4630', '#f7dcc7'];
@@ -200,8 +206,10 @@
   // ---------------------------------------------------------------- office
 
   class Office {
-    constructor(root, { onHover, label, onFrame, showAgent = true, compact = false, characters = true } = {}) {
+    constructor(root, { onHover, label, onFrame, showAgent = true, compact = false, characters = true, crew = true } = {}) {
       this.root = root;
+      this.crewOn = crew;
+      this.crew = new Map();
       // 반달이 & 꼬미 sprite staff (public/characters.js); people drawn by
       // hand are the fallback until the sheets load, or when switched off.
       this.characters = characters;
@@ -498,7 +506,7 @@
       if (!this.plan.fixed && (working.length > cap - 1 || (cap > 8 && working.length < cap * 0.35))) {
         this.plan = this.buildPlan(working.length);
         this.deskOf.clear();
-        for (const p of this.people.values()) { p.poi = null; p.napDesk = null; p.desk = null; p.until = 0; }
+        for (const p of this.everyone()) { p.poi = null; p.napDesk = null; p.desk = null; p.until = 0; }
       }
 
       const workKeys = new Set(working.map((s) => s.key));
@@ -545,7 +553,43 @@
           this.goTo(p, this.plan.door);
         }
       }
+      this.updateCrew(wanderers.length);
       this.first = false;
+    }
+
+    // Everyone on the floor: agents first, then the lounge crew.
+    *everyone() { yield* this.people.values(); yield* this.crew.values(); }
+    who(key) { return this.people.get(key) || this.crew.get(key); }
+
+    // Keep the break room lively: with nobody (or few) off duty, residents
+    // 반달이 and 꼬미 hang out at the ping-pong table, the couch, the coffee
+    // machine… They walk in through the door and leave the same way when
+    // agents finish work and take over the lounge.
+    updateCrew(offDuty) {
+      const want = this.crewOn ? Math.max(0, CREW_SIZE - offDuty) : 0;
+      for (let i = 0; i < CREW_SIZE; i++) {
+        const key = `crew:${i}`;
+        let p = this.crew.get(key);
+        if (i < want) {
+          if (!p || p.leaving) {
+            if (!p) {
+              // One of them is always a little sleepy.
+              const s = { key, id: key, agent: 'crew', crew: true, status: i === 3 ? 'idle' : 'done', lastEventAt: 0 };
+              p = this.newPerson(s);
+              p.crew = true;
+              p.cast = CREW_CAST[i % CREW_CAST.length];
+              this.crew.set(key, p);
+            }
+            p.leaving = false;
+            p.mode = 'wander'; p.poi = null; p.until = 0; p.path = [];
+          }
+        } else if (p && !p.leaving) {
+          p.leaving = true;
+          p.mode = 'leave';
+          this.release(p);
+          this.goTo(p, this.plan.door);
+        }
+      }
     }
 
     release(p) {
@@ -590,9 +634,12 @@
         let w = 1;
         if (q.pair) w = plan.pois.some((o) => o.pair === q.pair && o !== q && o.taken) ? 7 : 1.2;
         if (q.act === 'couch' || q.act === 'beanbag' || q.sleepy) w = sleepy ? 3 : 1.4;
+        // Off duty means a break: the lounge and games come first.
+        if (PLAY.has(q.act)) w *= p.crew ? 3 : 1.6;
+        else if (p.crew) w *= 0.5;
         weighted.push([q, w]);
       }
-      for (const d of plan.noNap ? [] : plan.desks) {
+      for (const d of plan.noNap || p.crew ? [] : plan.desks) {
         if (workingDesks.has(d) || d.napper) continue;
         weighted.push([{ x: d.seat.x, y: d.seat.y, act: 'nap', face: d.side === 'n' ? 'front' : 'back', sit: 0.34, desk: d }, sleepy ? 3 : 0.25]);
       }
@@ -1338,7 +1385,7 @@
       c.restore();
 
       const headTop = y + (hy - 8) * sc;
-      this.hit.push({ key: p.key, x0: x - 13, x1: x + 13, y0: headTop - 22, y1: fb.y + 4 });
+      if (!p.crew) this.hit.push({ key: p.key, x0: x - 13, x1: x + 13, y0: headTop - 22, y1: fb.y + 4 });
       return { x, y: headTop, act: st.act };
     }
 
@@ -1381,6 +1428,7 @@
       if (st.pose !== 'walk') p.dir = dir;
       const sc = s.subagent ? 0.85 : 1;
       const ch = C.get(p.cast);
+      if (!ch) return null;
       const w = ch.m.width * ch.scale * sc;
 
       const fb = this.iso(p.x, p.y, 0);
@@ -1418,7 +1466,7 @@
       }
 
       const top = r.top;
-      this.hit.push({ key: p.key, x0: x - w / 2 - 2, x1: x + w / 2 + 2, y0: top - 14, y1: fb.y + 4 });
+      if (!p.crew) this.hit.push({ key: p.key, x0: x - w / 2 - 2, x1: x + w / 2 + 2, y0: top - 14, y1: fb.y + 4 });
       return { x, y: top + 6, act: st.act };
     }
 
@@ -1519,7 +1567,9 @@
       }
 
       const hover = this.hoverKey === p.key;
-      if (!s.subagent || hover) {
+      if (p.crew) {
+        // residents carry no name tag
+      } else if (!s.subagent || hover) {
         pill(this.label(s), pal.text, pal.tagBg, top - 11, p.mode === 'work' || hover ? 1 : 0.7, true);
       } else if (badge) {
         this.agentBadge(badge, x, top - 11);
@@ -1595,7 +1645,7 @@
     pingPongBall() {
       const players = this.plan.pois
         .filter((q) => q.pair === 'pp' && q.taken)
-        .map((q) => this.people.get(q.taken))
+        .map((q) => this.who(q.taken))
         .filter((p) => p && p.poi && p.poi.pair === 'pp' && !p.path.length);
       if (players.length < 2) return;
       const pp = this.plan.pp;
@@ -1631,7 +1681,8 @@
     // Advance people and the cat; shared by the 2D and 3D renderers.
     step(dt) {
       const wall = Date.now();
-      for (const [k, p] of this.people) {
+      for (const p of [...this.everyone()]) {
+        const k = p.key;
         if (p.mode === 'wander') {
           if (p.poi && !p.path.length && p.until === Infinity) p.until = wall + p.stay;
           this.wander(p, wall);
@@ -1648,7 +1699,7 @@
           if (d <= v) { p.x = n.x; p.y = n.y; p.path.shift(); }
           else { p.x += (dx / d) * v; p.y += (dy / d) * v; }
         } else if (p.leaving) {
-          this.people.delete(k);
+          (p.crew ? this.crew : this.people).delete(k);
         }
       }
       this.moveCat(dt, wall);
@@ -1664,7 +1715,7 @@
 
       this.drawRoom();
       const occupant = new Map();
-      for (const p of this.people.values()) {
+      for (const p of this.everyone()) {
         if (p.mode === 'work' && p.desk) occupant.set(p.desk, p);
         else if (p.napDesk) occupant.set(p.napDesk, p);
       }
@@ -1674,7 +1725,7 @@
         items.push({ depth: dk.x + 0.7 + dk.y + 0.4, draw: () => this.desk(dk, p) });
         items.push({ depth: dk.seat.x + dk.seat.y - 0.06, draw: () => this.chair(dk, p) });
       }
-      for (const p of this.people.values()) items.push({ depth: p.x + p.y + 0.01, person: p });
+      for (const p of this.everyone()) items.push({ depth: p.x + p.y + 0.01, person: p });
       items.push({ depth: this.cat.x + this.cat.y, draw: () => this.drawCat() });
       items.sort((a, b) => a.depth - b.depth);
 
